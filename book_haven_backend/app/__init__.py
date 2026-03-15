@@ -20,9 +20,19 @@ def create_app(config_class=Config):
     # Register blueprints
     from app.modules.health import health_bp
     from app.modules.users import users_bp
+    from app.modules.communities import communities_bp
+    from app.modules.books import books_bp
+    from app.modules.offers import offers_bp
+    from app.modules.transactions import transactions_bp
+    from app.modules.chat import chat_bp
     
     app.register_blueprint(health_bp)
     app.register_blueprint(users_bp)
+    app.register_blueprint(communities_bp)
+    app.register_blueprint(books_bp)
+    app.register_blueprint(offers_bp)
+    app.register_blueprint(transactions_bp)
+    app.register_blueprint(chat_bp)
     
     @app.route('/')
     def index():

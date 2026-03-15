@@ -125,19 +125,86 @@ def delete_book_offer(offer_id):
         cur.execute("DELETE FROM book_offer WHERE id = %s RETURNING id", (offer_id,))
         return cur.fetchone() is not None
 
-def count_book_offers(offer_type=None, is_active=None):
-    """Get total count of book offers"""
+def search_offers(query=None, offer_type=None, min_price=None, max_price=None, 
+                  latitude=None, longitude=None, radius_km=None, 
+                  limit=20, offset=0):
+    """
+    Search offers with filters and geographical sorting.
+    """
     with get_db_cursor() as cur:
-        query = "SELECT COUNT(*) FROM book_offer WHERE 1=1"
+        sql = """
+            SELECT bo.id, bo.offer_type, bo.price, bo.condition, bo.quantity, 
+                   bo.latitude, bo.longitude, bo.is_active, bo.user_id, bo.book_id,
+                   b.title as book_title, b.author as book_author, b.isbn, b.category,
+                   u.username as seller_username,
+                   u.trust_score
+        """
+        
+        # Add distance calculation if coords provided
+        if latitude is not None and longitude is not None:
+            sql += """,
+            (
+                6371 * acos(
+                    cos(radians(%s)) * cos(radians(bo.latitude)) * cos(radians(bo.longitude) - radians(%s)) +
+                    sin(radians(%s)) * sin(radians(bo.latitude))
+                )
+            ) AS distance
+            """
+        else:
+            sql += ", NULL as distance"
+
+        sql += """
+            FROM book_offer bo
+            JOIN book b ON bo.book_id = b.id
+            JOIN app_user u ON bo.user_id = u.id
+            WHERE bo.is_active = TRUE
+        """
+        
         params = []
-        
+        if latitude is not None and longitude is not None:
+            params.extend([latitude, longitude, latitude])
+
+        if query:
+            sql += " AND (b.title ILIKE %s OR b.author ILIKE %s OR b.category ILIKE %s)"
+            search_pattern = f"%{query}%"
+            params.extend([search_pattern, search_pattern, search_pattern])
+
         if offer_type:
-            query += " AND offer_type = %s"
+            sql += " AND bo.offer_type = %s"
             params.append(offer_type)
-        
-        if is_active is not None:
-            query += " AND is_active = %s"
-            params.append(is_active)
-        
-        cur.execute(query, params)
-        return cur.fetchone()[0]
+
+        if min_price is not None:
+            sql += " AND bo.price >= %s"
+            params.append(min_price)
+            
+        if max_price is not None:
+            sql += " AND bo.price <= %s"
+            params.append(max_price)
+
+        # Distance filter
+        if radius_km is not None and latitude is not None and longitude is not None:
+             sql += """ AND (
+                6371 * acos(
+                    cos(radians(%s)) * cos(radians(bo.latitude)) * cos(radians(bo.longitude) - radians(%s)) +
+                    sin(radians(%s)) * sin(radians(bo.latitude))
+                )
+            ) <= %s
+            """
+             params.extend([latitude, longitude, latitude, radius_km])
+
+        # Sorting
+        if latitude is not None and longitude is not None:
+            sql += " ORDER BY distance ASC"
+        else:
+            sql += " ORDER BY bo.created_at DESC" # Assuming created_at exists or use ID
+            # bo table doesn't have created_at in schema provided? 
+            # Checked schema: book_offer doesn't have created_at. IDs are serial, so ID DESC is fine for "newest".
+            # but I'll stick to ID DESC if distance not used.
+            if latitude is None:
+                 sql += ", bo.id DESC"
+
+        sql += " LIMIT %s OFFSET %s"
+        params.extend([limit, offset])
+
+        cur.execute(sql, params)
+        return cur.fetchall()

@@ -98,6 +98,8 @@ def add_member(user_id, community_id, role='member'):
             RETURNING user_id, community_id, role, joined_at
         """, (user_id, community_id, role))
         
+        membership = cur.fetchone()
+        
         # Update member count
         cur.execute("""
             UPDATE community
@@ -105,7 +107,7 @@ def add_member(user_id, community_id, role='member'):
             WHERE id = %s
         """, (community_id,))
         
-        return cur.fetchone()
+        return membership
 
 def remove_member(user_id, community_id):
     """Remove a user from a community"""

@@ -1,0 +1,13 @@
+{
+    "python.analysis.extraPaths": [
+        "./book_haven_backend"
+    ],
+    "python.autoComplete.extraPaths": [
+        "./book_haven_backend"
+    ],
+    "python.testing.pytestArgs": [
+        "book_haven_backend"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+}
